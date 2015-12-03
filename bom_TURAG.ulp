@@ -1,0 +1,580 @@
+#require 6.0500
+
+#usage 	"<b>Teileliste exportieren</b>"
+		"<p>"
+		"Erzeugt die Teileliste (Bill of Material) eines Projektes"
+		"<p>"
+
+
+///start define
+string NO_ORDER = "NOORDER";
+string PROTOTYPE = "PROTOTYPE";
+int PROVIDER_COUNT	= 4;
+numeric string provider_names[] = {"FARNELL","REICHELT","DIGIKEY","WUERTH"}; ///Only these attributes are important; all other will be ignored
+string external_lists = "R C L Q"; ///For these parts the numbers will be searched in external files
+string ORDER_CODE_RELPATH = "order_codes/";
+///end define
+
+numeric string list_rows[]; ///Rows of the displayed List
+numeric string part_name[], part_value[], part_device[], part_package[], part_headline[], part_description[], part_attributes[];
+int part_amount[];
+int row = 0, num_parts = 0, output_format;
+enum {output_text, output_farnell, output_reichelt, output_DigiKey};
+
+void CollectPartData(void){
+	int printed_attr_error = 0;
+
+	schematic(schem){
+		schem.parts(part){
+			if(part.device.package){
+				numeric string attr_value[];
+				int attr_cnt, index[];
+
+				///get the properties
+				part_name[num_parts] = part.name;
+				part_value[num_parts] = part.value;
+				part_device[num_parts] = part.device.name;
+				part_package[num_parts] = part.device.package.name;
+				part_headline[num_parts] = part.device.headline;
+				part_description[num_parts] = part.device.description;
+				part_attributes[num_parts] = "";
+				part_amount[num_parts]=1;
+
+				///get the attributes
+				attr_cnt = 0;
+				part.attributes(attribute){
+					if(attr_cnt != -1){
+						for(int i=0;i<PROVIDER_COUNT;i++){
+							if( provider_names[i] == attribute.name ){
+								if(attribute.value != ""){
+									attr_value[i] = attribute.value;
+									attr_cnt++;
+								}
+								break;
+							}
+							if( attribute.name == NO_ORDER){
+								attr_cnt = -1;
+								break;
+							} else if(attribute.name == PROTOTYPE){
+								string msg;
+								sprintf(msg,":Das Bauteil '%s' wurde als Prototyp markiert und wird deshalb zweimal bestellt.\nBitte überprüfen, ob sich die Platine noch im Prototypstatus befindet und wir das wirklich zweimal bestellen müssen!", part_name[num_parts]);
+								if(dlgMessageBox(msg, "Weiter", "Abbrechen") == 1){
+									exit(1);
+								}
+								attr_value[PROVIDER_COUNT]=PROTOTYPE; //create an additional value in this array; PROVIDER_COUNT is the last+1 index
+								break;
+							}
+
+						}
+					}
+				}
+
+				if(attr_cnt != -1){
+					///search for several Parts in the external files (without the ORDER_CODE_RELPATH-directory)
+					string path;
+					int index = strrchr(argv[0], '\\');
+					if (index < 0){
+						index = strrchr(argv[0], '/');
+					}
+					path = strsub(argv[0], 0, index + 1 ); ///get the path of the directory of this file
+					if( (part.device.prefix != "") && (attr_cnt < PROVIDER_COUNT) && (strstr(external_lists, part.device.prefix) >= 0) ){
+						///Try to get attribute from external list file
+						string file[], line[], value, pack;
+						path += part.device.prefix + "_bestellnummern.txt";
+						fileerror(); //Reset error memory
+						fileread(file, path);
+						for (int i=0; file[i]; i++){
+							if(!strchr(file[i],'#')){ /// ignore Lines beginning with '#'
+								continue;
+							}
+							if( strsplit(line, file[i], ';') < (PROVIDER_COUNT + 2) ){
+								string e;
+								sprintf(e,":Die Datei '%s_bestellnummern.txt' hat in Zeile %d nicht genügend Argumente. \n Format: 'Package;Wert;Farnell;Reichelt;Digikey'", part.device.prefix, i+1);
+								dlgMessageBox(e);
+								exit(0);
+							}
+
+							/// prepare the Values (lower and upper case and this stuff)
+							value = part.value;
+							int p = strchr(value, 'µ');
+							if(p >= 0) {
+								value[p] = 'u';
+								string cmd;
+								cmd = "value " + part.name + " " + value + " ;run bom_TURAG";
+								exit(cmd); //send a command to EAGLE, that changes the value and restarts the bom-script
+							}
+							value = strlwr(part.value);
+							p = strchr(value, '.'); if(p >= 0) value[p] = ',';
+
+							line[0] = strlwr(line[0]); //package
+							pack    = strlwr(part.device.package.name);
+                            if (part.device.prefix == "R" || part.device.prefix == "C" || part.device.prefix == "L") {
+                                if (strstr(pack, "rcl_") == 0) { // remove "RCL_" from start of package name (custom R/C/L packages in TURAG_misc)
+                                    pack = strsub(pack, 4);
+                                }
+                            }
+                            if (part.device.prefix == "C") {
+                                if (strrchr(pack, 'k') == (strlen(pack)-1)) { // remove "K" from end of package name (Cs with Keepout)
+                                    pack = strsub(pack, 0, strlen(pack)-1);
+                                }
+                            }
+
+							line[1] = strlwr(line[1]); //value
+							p = strchr(line[1], 'µ'); if(p >= 0) line[1][p] = 'u';
+							p = strchr(line[1], '.'); if(p >= 0) line[1][p] = ',';
+
+
+							if( (pack == line[0]) && (value == line[1]) ){
+								for(int j=0;j<PROVIDER_COUNT;j++){ //if package and value are the same, take the number from file
+									if ( (attr_value[j] == "") && (line[j+2] != "") ){
+										attr_value[j] = line[j+2]; ///get numbers from external files
+										attr_cnt++;
+									}
+								}
+							}
+						}
+						if(fileerror()){
+							exit(1);
+						}
+					} else {
+						///this part is not a part that can be found in external_lists --> try to find the ordercode in the ORDER_CODE_RELPATH-directory
+						int filecount;
+						string device, pack, files[], line[], file[];
+						path += ORDER_CODE_RELPATH + "*.txt";
+						filecount = fileglob(files,path);
+						for (int i=0;i<filecount;i++){
+							fileerror(); //Reset error memory
+							fileread(file,files[i]);
+							//string msg;
+							//sprintf(msg,"processing file %s",files[i]);
+							//dlgMessageBox(msg);
+							for (int j=0; file[j]; j++){
+								//dlgMessageBox(file[j]);
+								if(!strchr(file[j],'#')){ // ignore Lines beginning with '#'
+									continue;
+								}
+								int line_items = strsplit(line,file[j],';');
+								if (line_items < 3){
+									string err;
+									sprintf(err,":Nicht genug Argumente in Datei %s, Zeile %d",files[i],j);
+									dlgMessageBox(err);
+									exit(0);
+								}
+								device = strlwr(part.device.name);
+								pack = strlwr(part.device.package.name);
+								if ( (device==strlwr(line[0])) && (pack==strlwr(line[1])) ){ // check part for same package and device name
+									for (int k=2;k<line_items;k++){
+										int sep_pos = strchr(line[k],'>');
+										if (sep_pos == -1) break;
+										string distributor = strsub(line[k],0,sep_pos);
+										int l;
+										for (l=0;l<PROVIDER_COUNT;l++){
+											if (distributor == provider_names[l]) break;
+										}
+										if (l == PROVIDER_COUNT){
+											string err;
+											sprintf(err,": Unbekannter Distributor '%s' in Datei %s, Zeile %d.",distributor,files[i],j);
+											dlgMessageBox(err);
+											exit(0);
+										}
+										string order_code = strsub(line[k],sep_pos+1,strlen(line[k])-sep_pos);
+										if (order_code == ""){
+											string err;
+											sprintf(err,":Keine Bestellnummer gefunden für %s in Datei %s, Zeile %d.",distributor,files[i],j);
+											dlgMessageBox(err);
+											exit(0);
+										}
+										if ( (attr_value[l] != "") && (attr_value[l] != order_code) ){
+										//if (attr_value[l] != ""){
+											string warn;
+											sprintf(warn,"!Bestellnummer für %s (für %s) wurde noch einmal definiert in Datei %s, Zeile %d",part.name,distributor,files[i],j);
+											if ( dlgMessageBox(warn,"Ignorieren","Abbrechen") == 1 ){
+												exit(0);
+											}
+										} else {
+											attr_value[l] = order_code; ///get numbers from external files
+											attr_cnt++;
+										}
+									} //end of line
+								}
+							} //end processing file
+						} //end processing directory
+					}
+
+					///Check, whether there is at least one order code
+					if ( (attr_cnt == 0) && !printed_attr_error){
+						string err_msg;
+						err_msg = "!Für Bauteil '" + part.name + "' wurde keine Bestellnummer gefunden";
+						switch( dlgMessageBox(err_msg,"Ignorieren","Alle ignorieren","Abbrechen") ){
+							case 1: printed_attr_error = 1; break;
+							case 2: exit(0);
+						}
+					}
+
+					fileerror(); //reset error memory
+					string file[], line[];
+					index = strrchr(argv[0], '\\');
+					if (index < 0){
+						index = strrchr(argv[0], '/');
+					}
+					path = strsub(argv[0], 0, index + 1 );
+					path += "Blacklist.txt";
+					fileread(file, path);
+					for (int k=0; file[k]; k++){
+						if(!strchr(file[k],'#')){ /// ignore Lines beginning with '#'
+							continue;
+						}
+						int splitcount=strsplit(line, file[k], ';');
+						for(int j=0;j<PROVIDER_COUNT;j++){
+							if( (attr_value[j] == line[0]) && (provider_names[j] == line[1]) ){
+								string err_msg;
+								err_msg = ":Das Bauteil '" + part.name + "' mit der Bestellnummer '" + attr_value[j] + "' ist bei "+ line[1] + " nicht mehr lieferbar!!";
+								if(splitcount >2){
+									err_msg += "\n\nMögliches Alternativprodukt: '" + line[2] + "'";
+								}
+								if (dlgMessageBox(err_msg,"Ignorieren","+Abbrechen") == 1) exit(0);
+							}
+						}
+					}
+					if(fileerror()){
+						exit(1);
+					}
+
+					///separate the numbers if there is more than one (numbers are seperated by an ':')
+					int num_add_attr_total = 0;
+					int prototype_multi= 1;
+					string substr;
+					for(int i=0;i<PROVIDER_COUNT;i++){
+						int index = 0, num_add_attr = 0;
+
+						if(attr_value[i] == ""){
+							//no attribute here -> nothing to do; only append a '\t' for displaying
+							while(num_add_attr <= num_add_attr_total){
+								part_attributes[num_parts + num_add_attr++] += "\t";
+							}
+							continue;
+						}
+
+						int pos = strchr(attr_value[i], ':', index);
+
+						if( /*(attr_value[i] != "") && */(attr_value[PROVIDER_COUNT] == PROTOTYPE) ){ //check the part for prototype status
+							prototype_multi = 2;
+						} else {
+							prototype_multi = 1;
+						}
+						while( pos > -1){ ///there is another number
+							if(num_add_attr_total < num_add_attr){
+								for(int j=0;j<i;j++) part_attributes[num_parts + num_add_attr] += "\t";
+							}
+							substr = strsub(attr_value[i],index,pos-index);
+							index = pos+1;
+							pos = strchr(substr,'*');
+							if (pos == -1){
+								part_amount[num_parts + num_add_attr] = prototype_multi;
+							} else {
+								//there is already an multiple part --> get the amount and multiply it
+								int amount = strtol(strsub(substr,pos+1));
+								part_amount[num_parts + num_add_attr] = amount*prototype_multi;
+							}
+
+							part_attributes[num_parts + num_add_attr] += strsub(substr,0,pos) + "\t";
+							part_name[num_parts + num_add_attr] = part_name[num_parts]; ///get the corresponding part
+							//index = pos + 1;
+							pos = strchr(attr_value[i], ':', index);
+							num_add_attr++;
+						}
+
+						if(num_add_attr_total < num_add_attr){ ///this tabs are needed to dispay it properly in the list
+							for(int j=0;j<i;j++) part_attributes[num_parts + num_add_attr] += "\t";
+							num_add_attr_total = num_add_attr;
+						}
+
+						substr = strsub(attr_value[i],index);
+						pos = strchr(substr,'*');
+						if(pos == -1){
+							part_amount[num_parts + num_add_attr] = prototype_multi;
+						} else {
+							int amount = strtol(strsub(substr,pos+1));
+							part_amount[num_parts + num_add_attr] = amount*prototype_multi;
+						}
+
+						part_attributes[num_parts + num_add_attr] += strsub(substr,0,pos) + "\t";
+						part_name[num_parts + num_add_attr] = part_name[num_parts]; ///get the corresponding part
+
+						while(num_add_attr < num_add_attr_total){ ///this tabs are needed to dispay it properly in the list
+							num_add_attr++;
+							part_attributes[num_parts + num_add_attr] += "\t";
+						}
+
+					}
+
+
+					num_parts += num_add_attr_total + 1;
+
+				}//if(attr_cnt != -1)
+
+
+			} //if(part.device.package)
+		} //schem.parts(part)
+	}
+
+
+} //void CollectPartData(void)
+
+void GenerateList(void){
+	int index[];
+	int ind1, ind2, amount = 0;
+	string qty;
+
+	sort(num_parts, index, part_value, part_device, part_headline, part_package, part_attributes, part_name);
+
+	row = 0;
+	list_rows[row] = "Menge\tWert\tBauelement\tPackage\t";
+	for(int i=0;i<PROVIDER_COUNT;i++){
+		list_rows[row] += provider_names[i] + "\t";
+	}
+	list_rows[row++] += "Beschreibung\tBauteile";
+
+
+	///accumulate the parts and get the amount if there is more than one part with the same properties
+	for(int i1 = 0, i2 = 1; i2<=num_parts; i2++){
+		int is_prototype = 0;
+		ind1 = index[i1]; //first part with same properties
+		ind2 = index[i2]; //the other(last) part with same properties
+		if(i1 == (i2-1)){
+			amount = part_amount[ind1];
+		}
+
+		if( (i2 != num_parts) && (part_value[ind1] == part_value[ind2]) && (part_package[ind1] == part_package[ind2]) && (part_device[ind1] == part_device[ind2]) && (part_attributes[ind1] == part_attributes[ind2])){
+			amount += part_amount[ind2];
+			continue;
+		}
+
+		sprintf(qty, "%d", (amount)); ///calculate quantity of same parts
+		amount = 0;
+
+		list_rows[row] = qty + "\t" + part_value[ind1] + "\t" + part_device[ind1] + "\t" + part_package[ind1] + "\t" + part_attributes[ind1] + part_headline[ind1] + "\t";
+
+		///list the part names
+		do{
+			list_rows[row] += part_name[index[i1]];
+			if(i1 < (i2-1)) list_rows[row] += ",";
+		}while(++i1<i2);
+
+
+
+		row++;
+	}
+
+
+}
+
+string MakeTextOutput(void){
+	string out = "", line, split[];
+	int i, width[], headers;
+
+	headers = strsplit(split,list_rows[0],'\t');
+
+	///get the maximum width for each column
+	for(i=0;list_rows[i];i++){
+		strsplit(split,list_rows[i],'\t');
+		for(int j=0;j<headers;j++){
+			width[j] = max(width[j], strlen(split[j]));
+		}
+	}
+
+	///print the rows
+	for(i=0;i<row;i++){
+		line = "";
+		int n = strsplit(split,list_rows[i],'\t');
+
+		if(i == 0){
+			headers = n;
+		} else {
+			n = headers; /// for the Rows with missing cells
+		}
+
+		for(int j=0;j<n;j++){
+			while(strlen(split[j]) <= width[j] ){ ///add spaces --> every row in every column the same width
+				split[j] += " ";
+			}
+			line += split[j] + "|";
+		}
+
+		if( i == 0 ){ ///the '-------' below the heading
+			int len = strlen(line);
+			line += "\n";
+			for(int j=0;j<=len;j++){
+				line += "-";
+			}
+		}
+
+		out += line + "\n";
+	}
+
+	return out;
+}
+
+string MakeFarnellOutput(void){ ///Farnell Syntax: 'number, quantity'
+	string out = "Bestellnummer,Menge\n", split[];
+	int farnell_index, i, j;
+
+	strsplit(split, list_rows[0], '\t');
+	for(i=0;list_rows[i];i++){ ///get the index of the Farnell-number
+		if (split[i] == "FARNELL"){
+			farnell_index = i;
+			break;
+		}
+	}
+
+	for(i=1;i<row;i++){
+		strsplit(split, list_rows[i], '\t');
+		if(split[farnell_index] != ""){
+			if( strtol(split[0]) ) out += split[farnell_index] + "," + split[0] + "\n"; ///split[0] is the quantity; make only an output, when there is any needed part
+		}
+	}
+
+	return out;
+}
+
+string MakeReicheltOutput(void){///Reichelt-Syntax: 'number;quantity'
+	string out = "", split[];
+	int reichelt_index, i, j;
+
+	strsplit(split, list_rows[0], '\t');
+	for(i=0;list_rows[i];i++){ ///get the index of the Reichelt-number
+		if (split[i] == "REICHELT"){
+			reichelt_index = i;
+			break;
+		}
+	}
+
+	for(i=1;i<row;i++){
+		strsplit(split, list_rows[i], '\t');
+		if(split[reichelt_index] != ""){
+			if( strtol(split[0]) ) out += split[reichelt_index] + ";" + split[0] + "\n";///split[0] is the quantity; make only an output, when there is any needed part
+		}
+	}
+
+	return out;
+}
+
+string MakeDigikeyOutput(void){///Digikey-Syntax: 'quantity,number'
+	string out = "", split[];
+	int digikey_index, i, j;
+
+	strsplit(split, list_rows[0], '\t');
+	for(i=0;list_rows[i];i++){ ///get the index of the Digikey-number
+		if (split[i] == "DIGIKEY"){
+			digikey_index = i;
+			break;
+		}
+	}
+
+	for(i=1;i<row;i++){
+		strsplit(split, list_rows[i], '\t');
+		if(split[digikey_index] != ""){
+			if( strtol(split[0]) ) out += split[0] + "," + split[digikey_index] + "\n";///split[0] is the quantity; make only an output, when there is any needed part
+		}
+	}
+
+	return out;
+}
+
+string MakeOutput(void){ ///Choose the Output-Format
+	switch(output_format){
+		case output_text: return MakeTextOutput(); break;
+		case output_farnell: return MakeFarnellOutput(); break;
+		case output_reichelt: return MakeReicheltOutput(); break;
+		case output_DigiKey: return MakeDigikeyOutput(); break;
+	}
+	return "";
+}
+
+void SaveData(void){
+	string file_name;
+	schematic(schem) file_name = filesetext(schem.name,""); ///filename is the name of the schematic; file will be stored in the folder of schematic
+
+	switch(output_format){
+		case output_farnell: file_name += "_farnell"; break;
+		case output_reichelt: file_name += "_reichelt"; break;
+		case output_DigiKey: file_name += "_digikey"; break;
+	}
+
+	file_name += ".txt";
+
+	string path = dlgFileSave("Teileliste speichern", file_name ); ///Open save-Dialog
+
+	if (path){ ///do not save if the path is empty
+		fileerror();
+		string s[];
+		if (!fileglob (s, path) || dlgMessageBox ("!Datei existiert - überschreiben?", "+&Ja", "-&Nein") == 0){ ///check, whether the file already exists and ask for overwriting
+			output (path, "wt"){ ///open the file
+				printf ("%s", MakeOutput()); ///write to the file
+			}
+		}
+
+		if (fileerror()){ ///there was an error while writing the file
+			dlgMessageBox(":Unable to save file");
+			return;
+		}
+	}
+}
+
+void ViewList(void){
+	dlgDialog("Voransicht"){ ///The window
+		dlgVBoxLayout{ ///box to stack it vertically
+			string s = MakeOutput();
+			s = "<pre>" + s + "</pre>";
+			dlgTextView(s); ///Text box
+			dlgHBoxLayout{ ///box for buttons (stack it horizontally)
+				dlgStretch(1); ///stretch: the buttons should be in the middle
+				dlgPushButton("+&Speichern...") SaveData();
+				dlgPushButton("+Schließen") dlgReject();
+				dlgStretch(1); ///stretch: the buttons should be in the middle
+			}
+		}
+	};
+}
+
+/// ~~~BEGIN of the ULP ~~~~~~
+
+if (!schematic) ///this ULP only works in Schematicss
+{
+  dlgMessageBox (":Die Bauteilliste kann nur innerhalb eines Schaltplanes erstellt werden.");
+  exit (1);
+}
+
+CollectPartData();
+GenerateList();
+
+//string str; sprintf(str, "parts: %d",num_parts); dlgMessageBox(str);
+
+dlgDialog("Teileliste"){ ///Main Dialog
+
+	int selected = -2, sort_col = 2, format;
+	string head = ""; ///empty, because it will be generated in 'GenerateList()' as the row[0]
+
+	dlgVBoxLayout { ///Box to stack it vertically
+		dlgListView (head, list_rows, selected);//, sort_col); ///List
+		dlgHBoxLayout{ ///Box for the output-format
+			dlgGroup("Ausgabe-Format"){
+				dlgRadioButton("&Text", output_format);
+				dlgRadioButton("&Farnell-Bestellliste", output_format);
+				dlgRadioButton("&Reichelt-Bestellliste", output_format);
+				dlgRadioButton("&DigiKey-Bestellliste", output_format);
+			}
+			dlgStretch(1);
+		}
+		dlgHBoxLayout{ ///box to stack the buttons horizontally
+			//dlgStretch(1);
+			dlgPushButton("&Voransicht") ViewList();
+			dlgPushButton("+&Speichern...") SaveData();
+			dlgPushButton("S&chließen") dlgReject();
+			dlgStretch(1);
+		}
+	}
+
+
+};
+

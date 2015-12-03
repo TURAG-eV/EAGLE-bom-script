@@ -1,0 +1,1 @@
+# Format: Bestellnummer;LIEFERANT;Alternativbestellnummer(optional)

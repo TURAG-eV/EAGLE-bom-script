@@ -1,0 +1,1 @@
+#Format: 'Package;Wert;Farnell-Nummer;Reichelt-Nummer;Digikey-Nummer;Wurth-Nummer'
