@@ -12,7 +12,7 @@ string NO_ORDER = "NOORDER";
 string PROTOTYPE = "PROTOTYPE";
 string KEEP_AS_IS = "KEEP_AS_IS";
 //providers
-numeric string provider_names[] = {"FARNELL","REICHELT","DIGIKEY","WUERTH"}; ///Only these attributes are important; all other will be ignored
+numeric string provider_names[] = {"FARNELL","REICHELT","DIGIKEY","WUERTH"}; ///Only these attributes are important; all other will be ignored without warning
 int PROVIDER_COUNT	= 4;
 //pathes
 string ORDER_CODE_RELPATH = "order_codes/";
@@ -20,7 +20,7 @@ string ORDER_CODE_RELPATH = "order_codes/";
 
 enum {output_text, output_farnell, output_reichelt, output_DigiKey};
 // arrays for order codes from file
-numeric string oc_device[], oc_package[], oc_value[], oc_code[];
+numeric string oc_device[], oc_package[], oc_value[], oc_provider[] oc_ordercode[];
 int oc_index[], oc_count;
 //arrays for order codes from schematic
 numeric string part_name[], part_value[], part_device[], part_package[], part_headline[], part_description[], part_attributes[];
@@ -84,7 +84,10 @@ void collectFilePartData(void){
 				oc_device[oc_count] = line[0];
 				oc_package[oc_count] = line[1];
 				oc_value[oc_count] = line[2];
-				oc_code[oc_count] = line[j+3];
+				string order_codes[];
+				strsplit(order_codes, line[j+3], '>');
+				oc_provider[oc_count] = order_codes[0];
+				oc_ordercode[oc_count] = order_codes[1];
 				++oc_count;
 			}
 		}
