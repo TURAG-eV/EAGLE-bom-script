@@ -1,3 +1,5 @@
+*kopie*
+
 #only keep the example file in order_codes directory
 order_codes/
 !order_codes/example.txt
