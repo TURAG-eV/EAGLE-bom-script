@@ -20,6 +20,8 @@ string ORDER_CODE_RELPATH = "order_codes/";
 ///end define
 
 string msg;
+int row=0;
+numeric string list_rows[];
 enum {output_text, output_farnell, output_reichelt, output_DigiKey};
 // arrays for order codes from file
 numeric string oc_device[], oc_package[], oc_value[], oc_provider[], oc_ordercode[];
@@ -286,7 +288,74 @@ void updateCollectPartData(){
 					}
 				}
 				
-				
+				///separate the order codes if there is more than one (numbers are seperated by an ':')
+				int num_add_attr_total = 0;
+				int prototype_multi= 1;
+				string substr;
+				for(i=0;i<PROVIDER_COUNT;i++){
+					int index = 0, num_add_attr = 0;
+
+					if(attr_value[i] == ""){
+						//no attribute here -> nothing to do; only append a '\t' for displaying
+						while(num_add_attr <= num_add_attr_total){
+							part_attributes[num_parts + num_add_attr++] += "\t";
+						}
+						continue;
+					}
+
+					int pos = strchr(attr_value[i], ':', index);
+
+					if( (attr_value[PROVIDER_COUNT] == PROTOTYPE) ){ //check the part for prototype status
+						prototype_multi = 2;
+					} else {
+						prototype_multi = 1;
+					}
+					while( pos > -1){ ///there is another number
+						if(num_add_attr_total < num_add_attr){
+							for(int j=0;j<i;j++) part_attributes[num_parts + num_add_attr] += "\t";
+						}
+						substr = strsub(attr_value[i],index,pos-index);
+						index = pos+1;
+						pos = strchr(substr,'*');
+						if (pos == -1){
+							part_amount[num_parts + num_add_attr] = prototype_multi;
+						} else {
+							//there is already an multiple part --> get the amount and multiply it
+							int amount = strtol(strsub(substr,pos+1));
+							part_amount[num_parts + num_add_attr] = amount*prototype_multi;
+						}
+
+						part_attributes[num_parts + num_add_attr] += strsub(substr,0,pos) + "\t";
+						part_name[num_parts + num_add_attr] = part_name[num_parts]; ///get the corresponding part
+						//index = pos + 1;
+						pos = strchr(attr_value[i], ':', index);
+						num_add_attr++;
+					}
+
+					if(num_add_attr_total < num_add_attr){ ///this tabs are needed to dispay it properly in the list
+						for(int j=0;j<i;j++) part_attributes[num_parts + num_add_attr] += "\t";
+						num_add_attr_total = num_add_attr;
+					}
+
+					substr = strsub(attr_value[i],index);
+					pos = strchr(substr,'*');
+					if(pos == -1){
+						part_amount[num_parts + num_add_attr] = prototype_multi;
+					} else {
+						int amount = strtol(strsub(substr,pos+1));
+						part_amount[num_parts + num_add_attr] = amount*prototype_multi;
+					}
+
+					part_attributes[num_parts + num_add_attr] += strsub(substr,0,pos) + "\t";
+					part_name[num_parts + num_add_attr] = part_name[num_parts]; ///get the corresponding part
+
+					while(num_add_attr < num_add_attr_total){ ///this tabs are needed to dispay it properly in the list
+						num_add_attr++;
+						part_attributes[num_parts + num_add_attr] += "\t";
+					}
+
+				}
+				num_parts += num_add_attr_total + 1;
 				
 			} //if(part.device.package)
 		}
@@ -297,7 +366,7 @@ void updateCollectPartData(){
 	}
 } //updateCollectPartData()
 
-/*void GenerateList(void){
+void GenerateList(void){
 	int index[];
 	int ind1, ind2, amount = 0;
 	string qty;
@@ -511,7 +580,7 @@ void ViewList(void){
 			}
 		}
 	};
-}*/
+}
 
 /// ~~~BEGIN of the ULP ~~~~~~
 
@@ -535,7 +604,7 @@ if(argc > 0){
 collectFilePartData();
 updateCollectPartData();
 
-/*GenerateList();
+GenerateList();
 
 //string str; sprintf(str, "parts: %d",num_parts); dlgMessageBox(str);
 
@@ -565,5 +634,5 @@ dlgDialog("Teileliste"){ ///Main Dialog
 	}
 
 
-};*/
+};
 
