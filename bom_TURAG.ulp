@@ -57,6 +57,10 @@ void collectFilePartData(void){
 	fileerror(); //reset error buffer
 	for (int i=0;i<filecount;i++){
 		line_count = fileread(lines, files[i]);
+		if(fileerror()){
+			sprintf(msg, ":Error reading file %s", files[i]); dlgMessageBox(msg);
+			exit(1);
+		}
 		for (int line_nr=0;line_nr<line_count;line_nr++){
 			if( !(lines[line_nr]) ){
 				//ignore empty lines
@@ -87,9 +91,9 @@ void collectFilePartData(void){
 			}
 			
 			for(int j=0; j<(line_nargs-3); j++){
-				oc_device[oc_count] = line[0];
-				oc_package[oc_count] = line[1];
-				oc_value[oc_count] = line[2];
+				oc_device[oc_count] = strlwr(line[0]);
+				oc_package[oc_count] = strlwr(line[1]);
+				oc_value[oc_count] = strlwr(line[2]);
 				string order_codes[];
 				strsplit(order_codes, line[j+3], '>');
 				oc_provider[oc_count] = order_codes[0];
@@ -122,21 +126,33 @@ void updateCollectPartData(){
 		schem.parts(part){
 			if(part.device.package){
 				int keep_as_is = 0;
-				int i, index;
+				int attr_count, i, index;
 				
 				///get the properties
 				part_name[num_parts] = part.name;
 				if(part.device.value == "On"){
-					part_value[num_parts] = part.value;
+					part_value[num_parts] = strlwr(part.value);
 				} else {
 					part_value[num_parts] = "";
 				}
-				part_device[num_parts] = part.device.name;
-				part_package[num_parts] = part.device.package.name;
+				part_device[num_parts] = strlwr(part.device.name);
+				part_package[num_parts] = strlwr(part.device.package.name);
 				part_headline[num_parts] = part.device.headline;
 				part_description[num_parts] = part.device.description;
 				part_attributes[num_parts] = "";
 				part_amount[num_parts]=1;
+				
+				///simplify part package
+				if (part.device.prefix == "R" || part.device.prefix == "C" || part.device.prefix == "L") {
+					if (strstr(part_package[num_parts], "rcl_") == 0) { // remove "RCL_" from start of package name
+						part_package[num_parts] = strsub(part_package[num_parts], 4);
+					}
+				}
+				if (part.device.prefix == "C") {
+					if (strrchr(part_package[num_parts], 'k') == (strlen(pacpart_package[num_parts]k)-1)) { // remove "K" from end of package name (Cs with Keepout)
+						papart_package[num_parts]ck = strsub(pack, 0, strlen(part_package[num_parts])-1);
+					}
+				}
 				
 				///search for special attributes
 				part.attributes(attribute){
@@ -146,7 +162,7 @@ void updateCollectPartData(){
 				}
 				
 				///prepare part values
-				string new_value = strlwr(part_value[num_parts]);
+				string new_value = part_value[num_parts];
 				int pos;
 				pos = strchr(new_value, 'µ'); if( pos >= 0 ) new_value[pos] = 'u';
 				pos = strchr(new_value, '.'); if( pos >= 0 ) new_value[pos] = ',';
@@ -202,6 +218,7 @@ void updateCollectPartData(){
 				///collect Data for BOM
 				if(!update_cmd){
 					//only collect necessary data, when there is no part, that requires an update
+					
 				}
 			}
 		}
