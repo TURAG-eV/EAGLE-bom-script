@@ -119,7 +119,7 @@ if(0){
  * \brief Updates and collects part data from schematic
  */
 void updateCollectPartData(){
-	int printed_attr_error = 0;
+	int printed_no_attributes_error = 0;
 	string update_cmd = "";
 	
 	schematic(schem){
@@ -127,6 +127,7 @@ void updateCollectPartData(){
 			if(part.device.package){
 				int keep_as_is = 0;
 				int attr_count, i, index;
+				numeric string attr_value[];
 				
 				///get the properties
 				part_name[num_parts] = part.name;
@@ -149,8 +150,8 @@ void updateCollectPartData(){
 					}
 				}
 				if (part.device.prefix == "C") {
-					if (strrchr(part_package[num_parts], 'k') == (strlen(pacpart_package[num_parts]k)-1)) { // remove "K" from end of package name (Cs with Keepout)
-						papart_package[num_parts]ck = strsub(pack, 0, strlen(part_package[num_parts])-1);
+					if (strrchr(part_package[num_parts], 'k') == (strlen(part_package[num_parts])-1)) { // remove "K" from end of package name (Cs with Keepout)
+						part_package[num_parts] = strsub(part_package[num_parts], 0, strlen(part_package[num_parts])-1);
 					}
 				}
 				
@@ -213,14 +214,81 @@ void updateCollectPartData(){
 						}
 						--i;
 					}
-				}
+				} //Update attributes ready
 				
 				///collect Data for BOM
 				if(!update_cmd){
 					//only collect necessary data, when there is no part, that requires an update
 					
+					///get the attributes
+					attr_count = 0;
+					part.attributes(attribute){
+						if(attr_count != -1){
+							for(int i=0;i<PROVIDER_COUNT;i++){
+								if( PROVIDER_NAMES[i] == attribute.name ){
+									if(attribute.value != ""){
+										attr_value[i] = attribute.value;
+										attr_count++;
+									}
+									break;
+								}
+								if( attribute.name == NO_ORDER){
+									attr_count = -1;
+									break;
+								} else if(attribute.name == PROTOTYPE){
+									string msg;
+									sprintf(msg,":Part '%s' is marked as PROTOTYPE and will be ordered twice.\n Please check, if the board is still in prototyping and you really want to order it twice", part_name[num_parts]);
+									if(dlgMessageBox(msg, "+Continue", "-Abort") == 1){
+										exit(1);
+									}
+									attr_value[PROVIDER_COUNT]=PROTOTYPE; //create an additional value in this array; PROVIDER_COUNT is the last+1 index
+									break;
+								}
+
+							}
+						}
+					}
+					
+					///Check, whether there is at least one order code
+					if ( (attr_count == 0) && !printed_no_attributes_error){
+						string err_msg;
+						err_msg = "!No order code found for part '" + part.name + "'";
+						switch( dlgMessageBox(err_msg,"+Ignore","Ignore all","-Abort") ){
+							case 1: printed_no_attributes_error = 1; break;
+							case 2: exit(0);
+						}
+					}
+				} //if(!update_cmd)
+				
+				///Check blacklisted parts
+				fileerror(); //reset error memory
+				string file[], line[];
+				string path = get_pwd() + "Blacklist.txt";
+				fileread(file, path);
+				if(fileerror()){
+					sprintf(msg, ":Error reading file %s", path); dlgMessageBox(msg);
+					exit(1);
 				}
-			}
+				for (int k=0; file[k]; k++){
+					if(!strchr(file[k],'#')){ /// ignore Lines beginning with '#'
+						continue;
+					}
+					int splitcount=strsplit(line, file[k], ';');
+					for(int j=0;j<PROVIDER_COUNT;j++){
+						if( (attr_value[j] == line[0]) && (PROVIDER_NAMES[j] == line[1]) ){
+							string err_msg;
+							err_msg = ":Part '" + part.name + "' with order code '" + attr_value[j] + "' is no longer available at "+ line[1] + " !!";
+							if(splitcount >2){
+								err_msg += "\n\nPossible alternative: '" + line[2] + "'";
+							}
+							if (dlgMessageBox(err_msg,"Ignore","+Abort") == 1) exit(0);
+						}
+					}
+				}
+				
+				
+				
+			} //if(part.device.package)
 		}
 	}
 	if(update_cmd){
