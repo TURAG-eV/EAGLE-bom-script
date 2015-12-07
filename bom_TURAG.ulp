@@ -7,26 +7,33 @@
 
 
 ///start define
+string NOUPDATE = "noupdate";
 //special attributes
 string NO_ORDER = "NOORDER";
 string PROTOTYPE = "PROTOTYPE";
 string KEEP_AS_IS = "KEEP_AS_IS";
 //providers
-numeric string provider_names[] = {"FARNELL","REICHELT","DIGIKEY","WUERTH"}; ///Only these attributes are important; all other will be ignored without warning
+string PROVIDER_NAMES[] = {"FARNELL","REICHELT","DIGIKEY","WUERTH"}; ///Only these attributes are important; all other will be ignored without warning
 int PROVIDER_COUNT	= 4;
 //pathes
 string ORDER_CODE_RELPATH = "order_codes/";
 ///end define
 
+string msg;
 enum {output_text, output_farnell, output_reichelt, output_DigiKey};
 // arrays for order codes from file
-numeric string oc_device[], oc_package[], oc_value[], oc_provider[] oc_ordercode[];
+numeric string oc_device[], oc_package[], oc_value[], oc_provider[], oc_ordercode[];
 int oc_index[], oc_count;
 //arrays for order codes from schematic
 numeric string part_name[], part_value[], part_device[], part_package[], part_headline[], part_description[], part_attributes[];
 int part_amount[];
 int num_parts = 0, output_format;
+//run the update!
+int run_update;
 
+/**
+ * \brief Returns the path to the directory of the ULP-file
+ */
 string get_pwd(void){
 	int index = strrchr(argv[0], '\\');
 	if (index < 0){
@@ -39,7 +46,6 @@ string get_pwd(void){
  * \brief Collects part data from all files in ORDER_CODE_RELPATH directory and subdirectories
  */
 void collectFilePartData(void){
-	string msg;
 	string files[], lines[], line[], path;
 	int filecount, line_count, line_nargs;
 	
@@ -52,7 +58,7 @@ void collectFilePartData(void){
 	for (int i=0;i<filecount;i++){
 		line_count = fileread(lines, files[i]);
 		for (int line_nr=0;line_nr<line_count;line_nr++){
-			if(strlen(lines[line_nr]) == 0){
+			if( !(lines[line_nr]) ){
 				//ignore empty lines
 				continue;
 			}
@@ -93,13 +99,16 @@ void collectFilePartData(void){
 		}
 	}
 	
-	sort(oc_count, oc_index, oc_device, oc_package, oc_value, oc_code);
+	sort(oc_count, oc_index, oc_device, oc_package, oc_value, oc_provider, oc_ordercode);
 	//print for debug
+if(0){
 	sprintf(msg, "%d codes found", oc_count);
 	for(i=0; i<oc_count; i++){
-		sprintf(msg, "%s\n%d|%s|%s|%s|%s", msg, oc_index[i], oc_device[i], oc_package[i], oc_value[i], oc_code[i]);
+		int idx = oc_index[i];
+		sprintf(msg, "%s\n%d|%d|%s|%s|%s|%s|%s", msg, i, oc_index[idx], oc_device[idx], oc_package[idx], oc_value[idx], oc_provider[idx], oc_ordercode[idx]);
 	}
 	dlgMessageBox(msg);
+} //if(0)
 }
 
 /**
@@ -107,11 +116,13 @@ void collectFilePartData(void){
  */
 void updateCollectPartData(){
 	int printed_attr_error = 0;
+	string update_cmd = "";
 	
 	schematic(schem){
 		schem.parts(part){
 			if(part.device.package){
 				int keep_as_is = 0;
+				int i, index;
 				
 				///get the properties
 				part_name[num_parts] = part.name;
@@ -129,14 +140,58 @@ void updateCollectPartData(){
 						keep_as_is = 1;
 					}
 				}
+				
 				///update attributes
-				if(!keep_as_is){
-					part.attributes(attribute){
+				if(run_update && !keep_as_is){
+					//try to find order code for the part in codes read from files
+					string updated_providers[];
+					int updated_provider_count = 0;
+					
+					for(i=(oc_count-1); i>=0; i--){ //reverse search: empty value-entries should be used last. (like a wildcard)
+						index = oc_index[i];
+
+						if(oc_device[index] == part_device[num_parts]){
+							if(oc_package[index] == part_package[num_parts]){
+								//correspoinding entry found
+								break;
+							}
+						}
+					}
+					while(i >= 0){
+						index = oc_index[i];
+						if(oc_package[index] != part_package[num_parts]){
+							break;
+						}
+						if(oc_device[index] != part_device[num_parts]){
+							break;
+						}
+						for(int j=0; j<updated_provider_count; j++){
+							if(oc_provider[index] == updated_providers[j]){
+								break;
+							}
+						}
+						if(j<updated_provider_count){
+							//this provider was already updated. Trying to find another provider for the part
+							continue;
+						}
 						
+						if( (!oc_value[index]) || (oc_value[index] == part.value) ){
+							//we (probably) found a suitable order code for the part
+							if( part.attribute[oc_provider[index]] != oc_ordercode[index] ){
+								update_cmd += "ATTRIBUTE " + part_name[num_parts] + " " + oc_provider[index] + " '" + oc_ordercode[index] + "';";
+							}
+						}
+						--i;
 					}
 				}
+				//check, if we need to update this part
 			}
 		}
+	}
+	if(update_cmd){
+		update_cmd = "CHANGE DISPLAY OFF;" + update_cmd + " run bom_TURAG " + NOUPDATE + ";";
+		dlgMessageBox(update_cmd);
+		exit(update_cmd);
 	}
 } //updateCollectPartData()
 
@@ -150,7 +205,7 @@ void updateCollectPartData(){
 	row = 0;
 	list_rows[row] = "Menge\tWert\tBauelement\tPackage\t";
 	for(int i=0;i<PROVIDER_COUNT;i++){
-		list_rows[row] += provider_names[i] + "\t";
+		list_rows[row] += PROVIDER_NAMES[i] + "\t";
 	}
 	list_rows[row++] += "Beschreibung\tBauteile";
 
@@ -362,6 +417,17 @@ if (!schematic) ///this ULP only works in Schematicss
 {
   dlgMessageBox (":Die Bauteilliste kann nur innerhalb eines Schaltplanes erstellt werden.");
   exit (1);
+}
+
+run_update = 1;
+
+//check for parameters
+if(argc > 0){
+	for(int i=0; i<argc; i++){
+		if( argv[i] == NOUPDATE){
+			run_update = 0;
+		}
+	}
 }
 
 collectFilePartData();
