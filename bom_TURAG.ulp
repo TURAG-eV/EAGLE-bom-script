@@ -126,7 +126,11 @@ void updateCollectPartData(){
 				
 				///get the properties
 				part_name[num_parts] = part.name;
-				part_value[num_parts] = part.value;
+				if(part.device.value == "On"){
+					part_value[num_parts] = part.value;
+				} else {
+					part_value[num_parts] = "";
+				}
 				part_device[num_parts] = part.device.name;
 				part_package[num_parts] = part.device.package.name;
 				part_headline[num_parts] = part.device.headline;
@@ -139,6 +143,16 @@ void updateCollectPartData(){
 					if(attribute.name == KEEP_AS_IS){
 						keep_as_is = 1;
 					}
+				}
+				
+				///prepare part values
+				string new_value = strlwr(part_value[num_parts]);
+				int pos;
+				pos = strchr(new_value, 'µ'); if( pos >= 0 ) new_value[pos] = 'u';
+				pos = strchr(new_value, '.'); if( pos >= 0 ) new_value[pos] = ',';
+				if(new_value != part_value[num_parts]){
+					update_cmd += " VALUE " + part_name[num_parts] + " " + new_value + ";";
+					//sprintf(msg, "old value:%s, new:%s",part_value[num_parts], new_value); dlgMessageBox(msg);
 				}
 				
 				///update attributes
@@ -175,22 +189,25 @@ void updateCollectPartData(){
 							continue;
 						}
 						
-						if( (!oc_value[index]) || (oc_value[index] == part.value) ){
+						if( (!oc_value[index]) /*|| (!part_value[num_parts])*/ || (oc_value[index] == part.value) ){
 							//we (probably) found a suitable order code for the part
 							if( part.attribute[oc_provider[index]] != oc_ordercode[index] ){
-								update_cmd += "ATTRIBUTE " + part_name[num_parts] + " " + oc_provider[index] + " '" + oc_ordercode[index] + "';";
+								update_cmd += " ATTRIBUTE " + part_name[num_parts] + " " + oc_provider[index] + " '" + oc_ordercode[index] + "';";
 							}
 						}
 						--i;
 					}
 				}
-				//check, if we need to update this part
+				
+				///collect Data for BOM
+				if(!update_cmd){
+					//only collect necessary data, when there is no part, that requires an update
+				}
 			}
 		}
 	}
 	if(update_cmd){
 		update_cmd = "CHANGE DISPLAY OFF;" + update_cmd + " run bom_TURAG " + NOUPDATE + ";";
-		dlgMessageBox(update_cmd);
 		exit(update_cmd);
 	}
 } //updateCollectPartData()
