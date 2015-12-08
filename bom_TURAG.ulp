@@ -7,7 +7,9 @@
 
 
 ///start define
-string NOUPDATE = "noupdate";
+//arguments
+string ARG_NOUPDATE = "--noupdate";
+string ARG_ABS_OCPATH = "--ocpath";
 //special attributes
 string NO_ORDER = "NOORDER";
 string PROTOTYPE = "PROTOTYPE";
@@ -32,6 +34,8 @@ int part_amount[];
 int num_parts = 0, output_format;
 //run the update!
 int run_update;
+//order code path
+string oc_path = "";
 
 /**
  * \brief Returns the path to the directory of the ULP-file
@@ -53,8 +57,14 @@ void collectFilePartData(void){
 	
 	oc_count = 0;
 	
-	path = get_pwd(); ///get the path of the directory of this file
-	path += ORDER_CODE_RELPATH + "*.txt";
+	if(oc_path){
+		path = oc_path;
+	} else {
+		path = get_pwd(); ///get the path of the directory of this file
+		path += ORDER_CODE_RELPATH;
+	}
+	path += "*.txt";
+	//dlgMessageBox(path);
 	filecount = fileglob(files,path);
 	fileerror(); //reset error buffer
 	for (int i=0;i<filecount;i++){
@@ -394,7 +404,7 @@ void updateCollectPartData(){
 		}
 	}
 	if(update_cmd){
-		update_cmd = "CHANGE DISPLAY OFF;" + update_cmd + " run bom_TURAG " + NOUPDATE + ";";
+		update_cmd = "CHANGE DISPLAY OFF;" + update_cmd + " run bom_TURAG " + ARG_NOUPDATE + ";";
 		exit(update_cmd);
 	}
 } //updateCollectPartData()
@@ -626,13 +636,23 @@ if (!schematic) ///this ULP only works in Schematicss
 run_update = 1;
 
 //check for parameters
-if(argc > 0){
-	for(int i=0; i<argc; i++){
-		if( argv[i] == NOUPDATE){
-			run_update = 0;
+for(int i=1; i<argc; i++){ //argv[0] is the path of this ULP
+	if( argv[i] == ARG_NOUPDATE){
+		run_update = 0;
+	}
+	if( argv[i] == ARG_ABS_OCPATH ){
+		//user provided an absolute path for order codes (or at least he should)
+		++i;
+		oc_path = argv[i];
+		int idx = strchr(oc_path, '\\');
+		while(idx >= 0){
+			oc_path[idx] = '/';
+			idx = strchr(oc_path, '\\');
 		}
+		oc_path += "/";
 	}
 }
+
 
 collectFilePartData();
 updateCollectPartData();
