@@ -254,11 +254,44 @@ void updateCollectPartData(){
 					///Check, whether there is at least one order code
 					if ( (attr_count == 0) && !printed_no_attributes_error){
 						string err_msg;
-						err_msg = "!No order code found for part '" + part.name + "'";
-						switch( dlgMessageBox(err_msg,"+Ignore","Ignore all","-Abort") ){
-							case 1: printed_no_attributes_error = 1; break;
-							case 2: exit(0);
-						}
+						err_msg = "No order code found for part '" + part.name + "'";
+						dlgDialog("Order code not found"){
+							dlgVBoxLayout{
+								dlgHBoxLayout{
+									dlgLabel("<img src=warning.bmp>");
+									dlgStretch(1);
+									dlgLabel(err_msg);
+									dlgStretch(1);
+								}
+								//dlgSpacing(40);
+								dlgHBoxLayout{
+									dlgPushButton("+I&gnore") { 
+										dlgReject();
+									}
+									dlgPushButton("Ignore &All") {
+										printed_no_attributes_error = 1;
+										dlgAccept();
+									}
+									dlgPushButton("Show Part &Info"){
+										dlgReject();
+										exit("Info " + part.name);
+									}
+									dlgPushButton("-&Abort"){
+										dlgReject();
+										exit(0);
+									}
+								}
+							}
+						}; //dlgDialog
+						
+						
+						/*switch( dlgMessageBox(err_msg,"+Ignore","Ignore all","-Abort") ){
+							case 1: //Ignore all
+								printed_no_attributes_error = 1; break;
+							case 2: //abort
+								exit(0);
+								break;
+						}*/
 					}
 				} //if(!update_cmd)
 				
