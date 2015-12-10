@@ -282,6 +282,10 @@ void updateCollectPartData(){
 										printed_no_attributes_error = 1;
 										dlgAccept();
 									}
+									dlgPushButton("&Show Part"){
+										dlgReject();
+										exit("SHOW " + part.name);
+									}
 									dlgPushButton("Show Part &Info"){
 										dlgReject();
 										exit("Info " + part.name);
