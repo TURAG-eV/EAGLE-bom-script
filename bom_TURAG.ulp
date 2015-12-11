@@ -121,7 +121,7 @@ if(0){
 	sprintf(msg, "%d codes found", oc_count);
 	for(i=0; i<oc_count; i++){
 		int idx = oc_index[i];
-		sprintf(msg, "%s\n%d|%d|%s|%s|%s|%s|%s", msg, i, oc_index[idx], oc_device[idx], oc_package[idx], oc_value[idx], oc_provider[idx], oc_ordercode[idx]);
+		sprintf(msg, "%s\n%d|%d|%s|%s|%s|%s|%s", msg, i, idx, oc_device[idx], oc_package[idx], oc_value[idx], oc_provider[idx], oc_ordercode[idx]);
 	}
 	dlgMessageBox(msg);
 } //if(0)
@@ -218,7 +218,7 @@ void updateCollectPartData(){
 							continue;
 						}
 						
-						if( (!oc_value[index]) /*|| (!part_value[num_parts])*/ || (oc_value[index] == part.value) ){
+						if( (!oc_value[index]) /*|| (!part_value[num_parts])*/ || (oc_value[index] == part_value[num_parts]) ){
 							//we (probably) found a suitable order code for the part
 							if( part.attribute[oc_provider[index]] != oc_ordercode[index] ){
 								update_cmd += " ATTRIBUTE " + part_name[num_parts] + " " + oc_provider[index] + " '" + oc_ordercode[index] + "';";
@@ -409,6 +409,7 @@ void updateCollectPartData(){
 	}
 	if(update_cmd){
 		update_cmd = "CHANGE DISPLAY OFF;" + update_cmd + " run bom_TURAG " + ARG_NOUPDATE + ";";
+		//if( dlgMessageBox(update_cmd, "+OK", "-Abort") == 1) { exit(1); }
 		exit(update_cmd);
 	}
 } //updateCollectPartData()
@@ -657,8 +658,9 @@ for(int i=1; i<argc; i++){ //argv[0] is the path of this ULP
 	}
 }
 
-
-collectFilePartData();
+if(run_update){
+	collectFilePartData();
+}
 updateCollectPartData();
 
 GenerateList();
