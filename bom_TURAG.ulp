@@ -200,12 +200,16 @@ void updateCollectPartData(){
 							}
 						}
 					}
+int debug = 0;//part_device[num_parts] == strlwr("BAV199");
+if(debug){sprintf(msg, "name:%s, dev:%s, pack:%s, %d",part_name[num_parts], part_device[num_parts], part_package[num_parts], i);dlgMessageBox(msg);}
 					while(i >= 0){
 						index = oc_index[i];
 						if(oc_package[index] != part_package[num_parts]){
+				if(debug>0){sprintf(msg, "no pack, i:%d", i); dlgMessageBox(msg); }
 							break;
 						}
 						if(oc_device[index] != part_device[num_parts]){
+				if(debug>0) dlgMessageBox("no dev");
 							break;
 						}
 						for(int j=0; j<updated_provider_count; j++){
@@ -217,15 +221,18 @@ void updateCollectPartData(){
 							//this provider was already updated. Trying to find another provider for the part
 							continue;
 						}
-						
+				
+				if(debug){sprintf(msg, "oc_val:%s, part_val:%s", oc_value[index], part_value[num_parts]); dlgMessageBox(msg);}
 						if( (!oc_value[index]) /*|| (!part_value[num_parts])*/ || (oc_value[index] == part_value[num_parts]) ){
 							//we (probably) found a suitable order code for the part
+				if(debug){sprintf(msg, "found. part attr:%s, oc:%s", part.attribute[oc_provider[index]], oc_ordercode[index]); dlgMessageBox(msg); debug=-1;}
 							if( part.attribute[oc_provider[index]] != oc_ordercode[index] ){
 								update_cmd += " ATTRIBUTE " + part_name[num_parts] + " " + oc_provider[index] + " '" + oc_ordercode[index] + "';";
 							}
 						}
 						--i;
 					}
+if(debug){ if(dlgMessageBox("continue?", "+Yes", "-No") == 1) exit(0); }
 				} //Update attributes ready
 				
 				///collect Data for BOM
