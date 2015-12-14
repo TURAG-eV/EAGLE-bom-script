@@ -282,14 +282,14 @@ if(debug){ if(dlgMessageBox("continue?", "+Yes", "-No") == 1) exit(0); }
 								}
 								//dlgSpacing(40);
 								dlgHBoxLayout{
-									dlgPushButton("+I&gnore") { 
+									dlgPushButton("I&gnore") { 
 										dlgReject();
 									}
 									dlgPushButton("Ignore &All") {
 										printed_no_attributes_error = 1;
 										dlgAccept();
 									}
-									dlgPushButton("&Show Part"){
+									dlgPushButton("+&Show Part"){
 										dlgReject();
 										exit("SHOW " + part.name);
 									}
