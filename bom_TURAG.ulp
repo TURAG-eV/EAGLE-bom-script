@@ -191,7 +191,7 @@ void updateCollectPartData(){
 				if(run_update && !keep_as_is){
 					//try to find order code for the part in codes read from files
 					string updated_providers[];
-					int updated_provider_count = 0;
+					int updated_providers_count = 0;
 					
 					for(i=(oc_count-1); i>=0; i--){ //reverse search: empty value-entries should be used last. (like a wildcard)
 						index = oc_index[i];
@@ -203,7 +203,7 @@ void updateCollectPartData(){
 							}
 						}
 					}
-int debug = 0;//part_device[num_parts] == strlwr("BAV199");
+int debug = 0;//(part_name[num_parts] == ("UST$1"));
 if(debug){sprintf(msg, "name:%s, dev:%s, pack:%s, %d",part_name[num_parts], part_device[num_parts], part_package[num_parts], i);dlgMessageBox(msg);}
 					while(i >= 0){
 						index = oc_index[i];
@@ -215,23 +215,26 @@ if(debug){sprintf(msg, "name:%s, dev:%s, pack:%s, %d",part_name[num_parts], part
 				if(debug>0) dlgMessageBox("no dev");
 							break;
 						}
-						for(int j=0; j<updated_provider_count; j++){
+						for(int j=0; j<updated_providers_count; j++){
 							if(oc_provider[index] == updated_providers[j]){
 								break;
 							}
 						}
-						if(j<updated_provider_count){
+						if(j<updated_providers_count){
+        if(debug>0) dlgMessageBox("provider already updated");
 							//this provider was already updated. Trying to find another provider for the part
+              --i;
 							continue;
 						}
 				
-				if(debug){sprintf(msg, "oc_val:%s, part_val:%s", oc_value[index], part_value[num_parts]); dlgMessageBox(msg);}
+				if(debug){sprintf(msg, "oc_val:%s, part_val:%s, i:%d", oc_value[index], part_value[num_parts], i); dlgMessageBox(msg);}
 						if( (!oc_value[index]) /*|| (!part_value[num_parts])*/ || (oc_value[index] == part_value[num_parts]) ){
 							//we (probably) found a suitable order code for the part
 				if(debug){sprintf(msg, "found. part attr:%s, oc:%s", part.attribute[oc_provider[index]], oc_ordercode[index]); dlgMessageBox(msg); debug=-1;}
 							if( part.attribute[oc_provider[index]] != oc_ordercode[index] ){
 								update_cmd += " ATTRIBUTE " + part_name[num_parts] + " " + oc_provider[index] + " '" + oc_ordercode[index] + "';";
 							}
+              updated_providers[updated_providers_count++] = oc_provider[index];
 						}
 						--i;
 					}
