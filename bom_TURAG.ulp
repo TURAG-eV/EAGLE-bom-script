@@ -15,8 +15,8 @@ string NO_ORDER = "NOORDER";
 string PROTOTYPE = "PROTOTYPE";
 string KEEP_AS_IS = "KEEP_AS_IS";
 //providers
-string PROVIDER_NAMES[] = {"FARNELL","REICHELT","DIGIKEY","WUERTH"}; ///Only these attributes are important; all other will be ignored without warning
-int PROVIDER_COUNT	= 4;
+string PROVIDER_NAMES[] = {"FARNELL","REICHELT","DIGIKEY","WUERTH","MINICIRCUITS","RS"}; ///Only these attributes are important; all other will be ignored without warning
+int PROVIDER_COUNT	= 6;
 //pathes
 string ORDER_CODE_RELPATH = "order_codes/";
 ///end define
@@ -162,8 +162,11 @@ void updateCollectPartData(){
 					}
 				}
 				if (part.device.prefix == "C") {
-					if (strrchr(part_package[num_parts], 'k') == (strlen(part_package[num_parts])-1)) { // remove "K" from end of package name (Cs with Keepout)
+					if (strrchr(part_package[num_parts], 'k') == (strlen(part_package[num_parts])-1)) { // remove "K" from end of package name (Cs without Keepout)
 						part_package[num_parts] = strsub(part_package[num_parts], 0, strlen(part_package[num_parts])-1);
+					}
+					if( strrchr(part_device[num_parts], 'k') == (strlen(part_device[num_parts])-1) ){//remove 'K' from end of device name (Cs without Keepout
+						part_device[num_parts] = strsub(part_device[num_parts], 0, strlen(part_device[num_parts])-1);
 					}
 				}
 				
@@ -289,11 +292,11 @@ if(debug){ if(dlgMessageBox("continue?", "+Yes", "-No") == 1) exit(0); }
 										printed_no_attributes_error = 1;
 										dlgAccept();
 									}
-									dlgPushButton("+&Show Part"){
+									dlgPushButton("&Show Part"){
 										dlgReject();
 										exit("SHOW " + part.name);
 									}
-									dlgPushButton("Show Part &Info"){
+									dlgPushButton("+Show Part &Info"){
 										dlgReject();
 										exit("Info " + part.name);
 									}
