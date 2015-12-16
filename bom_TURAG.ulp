@@ -24,7 +24,7 @@ string ORDER_CODE_RELPATH = "order_codes/";
 string msg;
 int row=0;
 numeric string list_rows[];
-enum {output_text, output_farnell, output_reichelt, output_DigiKey};
+enum {output_text, output_farnell, output_reichelt, output_DigiKey, output_Excel};
 // arrays for order codes from file
 numeric string oc_device[], oc_package[], oc_value[], oc_provider[], oc_ordercode[];
 int oc_index[], oc_count;
@@ -587,12 +587,40 @@ string MakeDigikeyOutput(void){///Digikey-Syntax: 'quantity,number'
 	return out;
 }
 
+string MakeExcelOutput(void){
+	string out = "", line, split[];
+	int i, width[], headers;
+
+	headers = strsplit(split,list_rows[0],'\t');
+
+	///print the rows
+	for(i=0;i<row;i++){
+		line = "";
+		int n = strsplit(split,list_rows[i],'\t');
+
+		if(i == 0){
+			headers = n;
+		} else {
+			n = headers; /// for the Rows with missing cells
+		}
+
+		for(int j=0;j<n;j++){
+			line += split[j] + "\t";
+		}
+
+		out += line + "\n";
+	}
+
+	return out;
+}
+
 string MakeOutput(void){ ///Choose the Output-Format
 	switch(output_format){
 		case output_text: return MakeTextOutput(); break;
 		case output_farnell: return MakeFarnellOutput(); break;
 		case output_reichelt: return MakeReicheltOutput(); break;
 		case output_DigiKey: return MakeDigikeyOutput(); break;
+		case output_Excel: return MakeExcelOutput(); break;
 	}
 	return "";
 }
@@ -605,6 +633,7 @@ void SaveData(void){
 		case output_farnell: file_name += "_farnell"; break;
 		case output_reichelt: file_name += "_reichelt"; break;
 		case output_DigiKey: file_name += "_digikey"; break;
+		case output_Excel: file_name += "_excel"; break;
 	}
 
 	file_name += ".txt";
@@ -693,6 +722,7 @@ dlgDialog("Teileliste"){ ///Main Dialog
 				dlgRadioButton("&Farnell-Bestellliste", output_format);
 				dlgRadioButton("&Reichelt-Bestellliste", output_format);
 				dlgRadioButton("&DigiKey-Bestellliste", output_format);
+				dlgRadioButton("Bestelliste für &Excel-Import", output_format);
 			}
 			dlgStretch(1);
 		}
