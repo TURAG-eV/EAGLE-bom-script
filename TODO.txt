@@ -1,0 +1,2 @@
+- Blacklist auslagern
+- Dokumentation des Syntax
