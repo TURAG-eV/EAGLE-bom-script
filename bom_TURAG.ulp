@@ -10,6 +10,7 @@
 //arguments
 string ARG_NOUPDATE = "--noupdate";
 string ARG_ABS_OCPATH = "--ocpath";
+string ARG_ABS_BLACKLISTPATH = "--blpath";
 //special attributes
 string NO_ORDER = "NOORDER";
 string PROTOTYPE = "PROTOTYPE";
@@ -19,6 +20,7 @@ string PROVIDER_NAMES[] = {"FARNELL","REICHELT","DIGIKEY","WUERTH","MINICIRCUITS
 int PROVIDER_COUNT	= 6;
 //pathes
 string ORDER_CODE_RELPATH = "order_codes/";
+string BLACKLIST_RELPATH = "";
 ///end define
 
 string msg;
@@ -36,6 +38,7 @@ int num_parts = 0, output_format;
 int run_update;
 //order code path
 string oc_path = "";
+string bl_path = "";
 
 /**
  * \brief Returns the path to the directory of the ULP-file
@@ -57,13 +60,7 @@ void collectFilePartData(void){
 	
 	oc_count = 0;
 	
-	if(oc_path){
-		path = oc_path;
-	} else {
-		path = get_pwd(); ///get the path of the directory of this file
-		path += ORDER_CODE_RELPATH;
-	}
-	path += "*.txt";
+	path = oc_path + "*.txt";
 	//dlgMessageBox(path);
 	filecount = fileglob(files,path);
 	fileerror(); //reset error buffer
@@ -325,7 +322,7 @@ if(debug){ if(dlgMessageBox("continue?", "+Yes", "-No") == 1) exit(0); }
 				///Check blacklisted parts
 				fileerror(); //reset error memory
 				string file[], line[];
-				string path = get_pwd() + "Blacklist.txt";
+				string path = bl_path;//get_pwd() + "Blacklist.txt";
 				fileread(file, path);
 				if(fileerror()){
 					sprintf(msg, ":Error reading file %s", path); dlgMessageBox(msg);
@@ -697,7 +694,21 @@ for(int i=1; i<argc; i++){ //argv[0] is the path of this ULP
 			idx = strchr(oc_path, '\\');
 		}
 		oc_path += "/";
-	}
+	} else {
+    oc_path = get_pwd() + ORDER_CODE_RELPATH;
+  }
+  if( argv[i] == ARG_ABS_BLACKLISTPATH){
+    //user provided an absolute path for the blacklist-file (or at least he should)
+    ++i;
+    bl_path = argv[i];
+    int idx = strchr(bl_path, '\\');
+    while(idx >= 0){
+      bl_path[idx] = '/';
+      idx = strchr(bl_path, '\\');
+    }
+  } else {
+    bl_path = get_pwd() + BLACKLIST_RELPATH + "Blacklist.txt";;
+  }
 }
 
 if(run_update){
