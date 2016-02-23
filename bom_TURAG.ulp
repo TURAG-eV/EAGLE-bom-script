@@ -325,7 +325,7 @@ if(debug){ if(dlgMessageBox("continue?", "+Yes", "-No") == 1) exit(0); }
 				string path = bl_path;//get_pwd() + "Blacklist.txt";
 				fileread(file, path);
 				if(fileerror()){
-					sprintf(msg, ":Error reading file %s", path); dlgMessageBox(msg);
+					sprintf(msg, ":Error reading blacklist file %s", path); dlgMessageBox(msg);
 					exit(1);
 				}
 				for (int k=0; file[k]; k++){
@@ -694,9 +694,7 @@ for(int i=1; i<argc; i++){ //argv[0] is the path of this ULP
 			idx = strchr(oc_path, '\\');
 		}
 		oc_path += "/";
-	} else {
-    oc_path = get_pwd() + ORDER_CODE_RELPATH;
-  }
+	}
   if( argv[i] == ARG_ABS_BLACKLISTPATH){
     //user provided an absolute path for the blacklist-file (or at least he should)
     ++i;
@@ -706,9 +704,15 @@ for(int i=1; i<argc; i++){ //argv[0] is the path of this ULP
       bl_path[idx] = '/';
       idx = strchr(bl_path, '\\');
     }
-  } else {
-    bl_path = get_pwd() + BLACKLIST_RELPATH + "Blacklist.txt";;
   }
+}
+
+/// check for empty pathes
+if(oc_path == ""){
+  oc_path = get_pwd() + ORDER_CODE_RELPATH;
+}
+if(bl_path == ""){
+  bl_path = get_pwd() + BLACKLIST_RELPATH + "Blacklist.txt";;
 }
 
 if(run_update){
