@@ -51,6 +51,21 @@ string get_pwd(void){
 	return strsub(argv[0], 0, index + 1 );
 }
 
+string remove_whitespaces(string input){
+  int start=0;
+  while(isspace(input[start])){
+    start++;
+  }
+  int end=strlen(input)-1;
+  if(start >= end){
+    return "";
+  }
+  while(isspace(input[end])){
+    end--;
+  }
+  return strsub(input, start, end-start+1);
+}
+
 /**
  * \brief Collects part data from all files in ORDER_CODE_RELPATH directory and subdirectories
  */
@@ -71,6 +86,7 @@ void collectFilePartData(void){
 			exit(1);
 		}
 		for (int line_nr=0;line_nr<line_count;line_nr++){
+      lines[line_nr] = remove_whitespaces(lines[line_nr]);
 			if( !(lines[line_nr]) ){
 				//ignore empty lines
 				continue;
@@ -80,6 +96,10 @@ void collectFilePartData(void){
 				continue;
 			}
 			line_nargs = strsplit(line, lines[line_nr], ';');
+      //remove whitespaces
+      for(int j=0;j<line_nargs;j++){
+        line[j] = remove_whitespaces(line[j]);
+      }
 			if( line_nargs < 4 ){
 				string err;
 				sprintf(err, ":File '%s' has not enough arguments in line %d.", files[i], line_nr+1);
@@ -99,7 +119,7 @@ void collectFilePartData(void){
 				exit(-1);
 			}
 			
-			for(int j=0; j<(line_nargs-3); j++){
+			for(j=0; j<(line_nargs-3); j++){
 				oc_device[oc_count] = strlwr(line[0]);
 				oc_package[oc_count] = strlwr(line[1]);
 				oc_value[oc_count] = strlwr(line[2]);
