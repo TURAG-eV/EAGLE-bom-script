@@ -15,17 +15,19 @@ string exit_cmd;
 
 schematic(schem){
 	schem.parts(part){
-		part.attributes(attribute){
-      for(int i=0;i<PROVIDER_COUNT;i++){
-        if(PROVIDER_NAMES[i] == attribute.name){
-          //found an ordercode-attribute -> delete it
+    if( (part.device.package) && (part.device.package.name != "BESTELLTEILE") ){
+  		part.attributes(attribute){
+        for(int i=0;i<PROVIDER_COUNT;i++){
+          if(PROVIDER_NAMES[i] == attribute.name){
+            //found an ordercode-attribute -> delete it
 /*
 sprintf(msg, "name: %s", part.name);
 if(dlgMessageBox(msg, "Ok", "Abbruch") != 0){
   exit(exit_cmd);
 }
 */
-          exit_cmd += "ATTRIBUTE " + part.name + " " + attribute.name + " DELETE; ";
+            exit_cmd += "ATTRIBUTE " + part.name + " " + attribute.name + " DELETE; ";
+          }
         }
       }
     }
