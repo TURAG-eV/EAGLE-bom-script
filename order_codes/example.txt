@@ -1,2 +1,7 @@
 #Format:  device;package;value(optional);distributor>order-code;distributor>order-code; ...
 
+#generate Template warning
+;;
+#If you encounter, that this file contains a syntax error, you're good
+#The error is to remind you to provide your own order-code files.
+#This file only is an empty template. 
