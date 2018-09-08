@@ -160,11 +160,7 @@ void updateCollectPartData(){
 				
 				///get the properties
 				part_name[num_parts] = part.name;
-				if(part.device.value == "On"){
-					part_value[num_parts] = strlwr(part.value);
-				} else {
-					part_value[num_parts] = "";
-				}
+				part_value[num_parts] = strlwr(part.value);
 				part_device[num_parts] = strlwr(part.device.name);
 				part_package[num_parts] = strlwr(part.device.package.name);
 				part_headline[num_parts] = part.device.headline;
@@ -247,7 +243,7 @@ if(debug){sprintf(msg, "name:%s, dev:%s, pack:%s, %d",part_name[num_parts], part
 				if(debug){sprintf(msg, "oc_val:%s, part_val:%s, i:%d", oc_value[index], part_value[num_parts], i); dlgMessageBox(msg);}
 						if( (!oc_value[index]) /*|| (!part_value[num_parts])*/ || (oc_value[index] == part_value[num_parts]) ){
 							//we (probably) found a suitable order code for the part
-				if(debug){sprintf(msg, "found. part attr:%s, oc:%s", part.attribute[oc_provider[index]], oc_ordercode[index]); dlgMessageBox(msg); debug=-1;}
+if(debug){sprintf(msg, "found. part attr:%s, oc:%s", part.attribute[oc_provider[index]], oc_ordercode[index]); dlgMessageBox(msg); debug=-1;}
 							if( part.attribute[oc_provider[index]] != oc_ordercode[index] ){
 								update_cmd += " ATTRIBUTE " + part_name[num_parts] + " " + oc_provider[index] + " '" + oc_ordercode[index] + "';";
 							}
